@@ -26,7 +26,7 @@ ProyectoFinal/
 │
 ├── data/
 │   ├── Books.jsonl.gz         
-│   ├── df_raw_sample.pkl      
+│   ├── df_sample.pkl      
 │   ├── train.pkl              
 │   └── test.pkl               
 │
@@ -36,6 +36,8 @@ ProyectoFinal/
 │   └── rewards_ts.pkl         
 │
 ├── src/
+│   ├── load_data.py              
+│   ├── preprocess.py            
 │   └── backend/
 │       ├── recommender.py     
 │       └── api.py             
