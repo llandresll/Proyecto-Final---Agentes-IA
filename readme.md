@@ -25,29 +25,29 @@ Para este proyecto se utilizó una **muestra de 100 000 registros**, seleccionad
 ProyectoFinal/
 │
 ├── data/
-│   ├── Books.jsonl.gz         # Dataset original
-│   ├── df_raw_sample.pkl      # Subset crudo (100k)
-│   ├── train.pkl              # Datos para entrenamiento
-│   └── test.pkl               # Datos para test
+│   ├── Books.jsonl.gz         
+│   ├── df_raw_sample.pkl      
+│   ├── train.pkl              
+│   └── test.pkl               
 │
 ├── results/
-│   ├── rewards_eg.pkl         # Rewards Epsilon-Greedy
-│   ├── rewards_ucb.pkl        # Rewards UCB1
-│   └── rewards_ts.pkl         # Rewards Thompson Sampling
+│   ├── rewards_eg.pkl         
+│   ├── rewards_ucb.pkl        
+│   └── rewards_ts.pkl         
 │
 ├── src/
-│ └── backend/
-│ ├── recommender.py # Clase BookRecommender + ALS
-│ └── api.py # API REST con FastAPI
+│   └── backend/
+│       ├── recommender.py     
+│       └── api.py             
 │
 ├── notebooks/
-│   ├── 01_EDA.ipynb           # Análisis exploratorio
-│   ├── 02_Preprocess.ipynb    # Procesamiento y división Train/Test
-│   ├── 03_Modelling.ipynb     # Modelos clásicos (baseline supervisado)
-│   ├── 04_Bandits.ipynb       # Implementación y entrenamiento de agentes
-│   └── 05_Comparacion_Final.ipynb   # Gráficos y conclusiones
+│   ├── 01_EDA.ipynb           
+│   ├── 02_Preprocess.ipynb    
+│   ├── 03_Modelling.ipynb     
+│   ├── 04_Bandits.ipynb       
+│   └── 05_Comparacion_Final.ipynb
 │
-├── requirements.txt # Dependencias Python
+├── requirements.txt           
 └── README.md
 ```
 
@@ -55,156 +55,78 @@ ProyectoFinal/
 
 ## Fase 1 – Carga del Dataset
 
-Para evitar cargar todo el archivo completo (que supera los 6GB), se implementó:
-
-```python
-def load_amazon_books_sample(path="../data/Books.jsonl.gz", sample_size=100000, chunk_size=50000):
-    """Carga solo una muestra del dataset sin leerlo completo."""
-    sampled_rows = []
-    total_read = 0
-
-    for chunk in pd.read_json(
-        path,
-        lines=True,
-        compression="gzip",
-        chunksize=chunk_size
-    ):
-        total_read += len(chunk)
-        frac = sample_size / total_read
-
-        if frac <= 0:
-            break
-
-        sampled_chunk = chunk.sample(
-            frac=min(1, frac),
-            replace=False,
-            random_state=42
-        )
-        sampled_rows.append(sampled_chunk)
-
-        if sum(len(c) for c in sampled_rows) >= sample_size:
-            break
-
-    df_sample = pd.concat(sampled_rows, ignore_index=True)
-
-    if len(df_sample) > sample_size:
-        df_sample = df_sample.sample(sample_size, random_state=42)
-
-    return df_sample
-```
-
-Salida:
-
-- 100 000 registros
-- Columnas: rating, title, text, asin, user_id, timestamp, etc.
-
-El dataframe resultante se guarda como `df_100k.pkl`.
+✔ *Los notebooks realizan esta fase.*  
 
 ---
 
-## Fase 2 – Preprocesamiento
+## Fase 2 – Preprocesamiento del Dataset  
+Aquí comienza a intervenir **`recommender.py`**.
 
-Incluye:
+Incluye funciones como:  
+- load_amazon_books_sample()  
+- clean_data()  
+- encode_ids()  
+- split_data()  
+- save_serialized()
 
-- Conversión de timestamps  
-- Eliminación de columnas no necesarias  
-- Codificación numérica de:
-  - `user_id → user`
-  - `asin → item`
-- Conversión de ratings de 1–5 a recompensas numéricas  
-- División en Train/Test (80/20)
-
-El resultado se almacena como:
-
-- `train.pkl`
-- `test.pkl`
+Ejecutadas mediante:  
+```
+recommender.preprocess_pipeline()
+```
 
 ---
 
-## Fase 3 – Implementación de Agentes Bandits
+## Fase 3 – Construcción del Modelo ALS
 
-Se implementaron **tres estrategias desde cero**:
+`recommender.py` implementa:  
+- create_user_item_matrix()  
+- train_model()  
+- save_model()  
+- load_model()  
 
-### ✔ Epsilon-Greedy (ε = 0.1)  
-### ✔ UCB1  
-### ✔ Thompson Sampling (Beta-Bernoulli)
-
-Cada agente interactúa con un entorno que simula el comportamiento de un usuario real mediante muestras desde `train`.
-
-Incluye:
-
-- Clase del entorno `UserBanditEnv`
-- Implementación de `select_item()` y `update()`
-- Manejo interno de valores estimados, conteos, probabilidades Beta, etc.
+Se usa para entrenar y guardar el modelo ALS.
 
 ---
 
-## Fase 4 – Entrenamiento de Bandits
+## Fase 4 – Entrenamiento de Agentes Bandits
 
-Cada agente ejecuta **5000 episodios**, donde en cada episodio:
-
-1. Se selecciona un usuario aleatorio  
-2. Se toma una interacción real de ese usuario  
-3. El agente elige un ítem  
-4. Se obtiene reward  
-5. Se actualiza el modelo  
-
-Se guardan los rewards:
-
-```
-/results/rewards_eg.pkl
-/results/rewards_ucb.pkl
-/results/rewards_ts.pkl
-```
+✔ *Realizado solo en notebooks.*  
+No usa recommender.py ni la API.
 
 ---
 
 ## Fase 5 – Comparación de Resultados
 
-Se cargan los rewards guardados y se generan:
+✔ *Solo notebooks.*  
 
-- Reward por episodio  
-- Reward acumulado  
-- Tabla comparativa  
-- Agente ganador  
-- Gráficos finales  
+---
 
-Código:
+## Fase 6 – API REST con FastAPI
 
-```python
-rewards_eg = pd.read_pickle("../results/rewards_eg.pkl")
-rewards_ucb = pd.read_pickle("../results/rewards_ucb.pkl")
-rewards_ts = pd.read_pickle("../results/rewards_ts.pkl")
+Aquí entra **`api.py`**, que carga el modelo ALS y expone endpoints REST.
+
+Endpoints:  
+- GET /recommendations/{user_id}  
+- GET /history/{user_id}  
+- GET /users  
+
+Comandos:  
+```
+uvicorn api:app --reload
 ```
 
 ---
 
-## Fase 6 – Conclusiones
+## Resumen de Roles
 
-### **Thompson Sampling fue el mejor agente**
-- Mayor reward acumulado  
-- Mayor estabilidad  
-- Mejor balance exploración/explotación  
-
-### Comparación general
-
-| Agente | Exploración | Estabilidad | Resultado |
-|--------|-------------|-------------|-----------|
-| Epsilon-Greedy | Alta aleatoria | Baja | Peor desempeño |
-| UCB1 | Balanceado | Alto | Segundo lugar |
-| Thompson Sampling | Probabilística óptima | Muy alto | **Ganador** |
+| Archivo | Rol |
+|--------|-----|
+| **recommender.py** | Preprocesamiento, ALS, generación de recomendaciones |
+| **api.py** | API REST sobre el modelo ALS |
+| Notebooks | EDA, procesamiento, modelado, bandits, comparación |
 
 ---
 
-## Conclusión Global
+## Conclusión
 
-Este sistema demuestra que **Multi-Armed Bandits son un enfoque eficiente, simple y escalable para sistemas de recomendación**, especialmente en escenarios con alta incertidumbre o interacción en línea.  
-**Thompson Sampling** es la mejor estrategia para este proyecto y se recomienda como modelo principal de despliegue.
-
----
-
-## Autor
-
-**Andrés Rivadeneyra**  
-Proyecto Final — IA Engineer  
-2025
+El proyecto combina un modelo ALS para recomendaciones con agentes Multi-Armed Bandits como método experimental y una API funcional para despliegue del sistema.
